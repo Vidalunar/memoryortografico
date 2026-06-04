@@ -1,0 +1,1206 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>Memory ortográfico - Patricia Romero Rodríguez</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    html, body {
+      min-height: 100%;
+      margin: 0;
+    }
+
+    body {
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at 10% 8%, rgba(255,255,255,0.26), transparent 27%),
+        radial-gradient(circle at 85% 12%, rgba(45,212,191,0.22), transparent 24%),
+        radial-gradient(circle at 50% 95%, rgba(250,204,21,0.16), transparent 30%),
+        linear-gradient(135deg, #1d3657 0%, #365f86 42%, #203a59 100%);
+      overflow-x: hidden;
+    }
+
+    .glass {
+      background: rgba(255,255,255,0.18);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid rgba(255,255,255,0.36);
+      box-shadow:
+        0 24px 60px rgba(10, 20, 35, 0.28),
+        inset 0 1px 0 rgba(255,255,255,0.35);
+    }
+
+    .board {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .board.crack-mode {
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    @media (max-width: 1050px) {
+      .board.crack-mode {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 850px) {
+      .board,
+      .board.crack-mode {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .board,
+      .board.crack-mode {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    .card-scene {
+      perspective: 1200px;
+      -webkit-perspective: 1200px;
+      height: 168px;
+    }
+
+    .crack-mode .card-scene {
+      height: 148px;
+    }
+
+    @media (max-width: 650px) {
+      .card-scene,
+      .crack-mode .card-scene {
+        height: 142px;
+      }
+    }
+
+    .memory-card {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      padding: 0;
+      touch-action: manipulation;
+      filter: drop-shadow(0 12px 18px rgba(15, 23, 42, 0.28));
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .memory-card:hover {
+      filter: drop-shadow(0 18px 26px rgba(15, 23, 42, 0.34));
+    }
+
+    .card-inner {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      transform-style: preserve-3d;
+      -webkit-transform-style: preserve-3d;
+      transition:
+        transform 0.52s cubic-bezier(.2,.8,.2,1),
+        opacity 0.45s ease,
+        scale 0.45s ease,
+        filter 0.3s ease;
+    }
+
+    .memory-card.flipped .card-inner {
+      transform: rotateY(180deg);
+      -webkit-transform: rotateY(180deg);
+    }
+
+    .memory-card.matched {
+      opacity: 0;
+      scale: 0.08;
+      pointer-events: none;
+      transition: opacity 0.45s ease, scale 0.45s ease;
+    }
+
+    .memory-card.wrong-open .front {
+      box-shadow:
+        inset 0 0 0 5px rgba(239, 68, 68, 0.42),
+        0 18px 34px rgba(127, 29, 29, 0.34);
+    }
+
+    .face {
+      position: absolute;
+      inset: 0;
+      border-radius: 24px;
+      overflow: hidden;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+      transform-style: preserve-3d;
+      -webkit-transform-style: preserve-3d;
+      box-shadow:
+        0 16px 30px rgba(15, 23, 42, 0.30),
+        inset 0 1px 0 rgba(255,255,255,0.55),
+        inset 0 -8px 18px rgba(15, 23, 42, 0.08);
+    }
+
+    .back {
+      z-index: 2;
+      transform: rotateY(0deg);
+      -webkit-transform: rotateY(0deg);
+      background:
+        radial-gradient(circle at 25% 16%, rgba(255,255,255,0.95), transparent 23%),
+        radial-gradient(circle at 80% 90%, rgba(47,128,237,0.20), transparent 30%),
+        linear-gradient(145deg, #f8fbff 0%, #dcecff 42%, #b9d8ff 100%);
+      border: 3px solid rgba(47,128,237,0.95);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+
+    .front {
+      z-index: 1;
+      transform: rotateY(180deg);
+      -webkit-transform: rotateY(180deg);
+      border: 3px solid var(--border-color);
+      color: #1f2937;
+      display: flex;
+      flex-direction: column;
+      background:
+        radial-gradient(circle at 16% 10%, rgba(255,255,255,0.94), transparent 24%),
+        radial-gradient(circle at 90% 92%, rgba(255,255,255,0.48), transparent 28%),
+        linear-gradient(145deg, var(--soft-color) 0%, #ffffff 100%);
+    }
+
+    .back::before,
+    .front::before {
+      content: "";
+      position: absolute;
+      inset: 7px;
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,0.74);
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .back-logo-wrap {
+      width: 92px;
+      height: 92px;
+      border-radius: 999px;
+      background:
+        radial-gradient(circle at 32% 22%, #ffffff, #eef6ff 70%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow:
+        0 16px 30px rgba(30, 58, 95, 0.28),
+        inset 0 0 0 4px rgba(255,255,255,0.85),
+        inset 0 0 0 7px rgba(47, 128, 237, 0.15);
+      z-index: 3;
+      position: relative;
+    }
+
+    .back-logo-wrap img {
+      width: 78px;
+      height: 78px;
+      object-fit: contain;
+      border-radius: 999px;
+      filter: drop-shadow(0 4px 5px rgba(15,23,42,0.16));
+    }
+
+    .word-front {
+      --border-color: rgba(148, 163, 184, 0.95);
+      --soft-color: #f8fafc;
+      border-color: rgba(203, 213, 225, 0.95);
+      background:
+        radial-gradient(circle at 20% 12%, rgba(255,255,255,1), transparent 25%),
+        linear-gradient(145deg, #ffffff 0%, #f1f5f9 100%);
+    }
+
+    .word-front::after {
+      content: "";
+      position: absolute;
+      inset: 14px;
+      border-radius: 16px;
+      background:
+        linear-gradient(145deg, rgba(255,255,255,0.72), rgba(226,232,240,0.38));
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.95),
+        inset 0 -8px 18px rgba(15, 23, 42, 0.06);
+      z-index: 0;
+    }
+
+    .rule-front::after {
+      content: "";
+      position: absolute;
+      width: 70%;
+      height: 180%;
+      transform: rotate(35deg);
+      background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255,255,255,0.28),
+        transparent
+      );
+      left: -75%;
+      top: -40%;
+      pointer-events: none;
+    }
+
+    .card-header {
+      background: linear-gradient(135deg, var(--main-color), var(--second-color));
+      color: white;
+      min-height: 38px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      padding: 0 10px;
+      font-size: 0.67rem;
+      font-weight: 950;
+      letter-spacing: 0.055em;
+      text-transform: uppercase;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.20);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.36),
+        0 5px 12px rgba(15,23,42,0.12);
+      z-index: 2;
+      position: relative;
+    }
+
+    .word-card-body,
+    .card-body {
+      flex: 1;
+      padding: 14px 12px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+      z-index: 2;
+    }
+
+    .card-body {
+      padding: 10px 11px 12px;
+    }
+
+    .word-label {
+      font-size: 0.76rem;
+      font-weight: 950;
+      letter-spacing: 0.12em;
+      color: #64748b;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    .word-text {
+      font-size: clamp(1.55rem, 3.2vw, 2.8rem);
+      line-height: 1;
+      font-weight: 950;
+      letter-spacing: 0.025em;
+      margin-bottom: 12px;
+      color: #111827;
+      text-shadow:
+        0 1px 0 rgba(255,255,255,0.95),
+        0 8px 14px rgba(15,23,42,0.12);
+    }
+
+    .crack-mode .word-text {
+      font-size: clamp(1.25rem, 2.3vw, 2.1rem);
+    }
+
+    .word-type-small {
+      font-size: 0.72rem;
+      font-weight: 850;
+      color: #64748b;
+      background: rgba(255,255,255,0.78);
+      border: 1px solid rgba(148,163,184,0.25);
+      border-radius: 999px;
+      padding: 0.22rem 0.55rem;
+    }
+
+    .rule-title {
+      font-size: clamp(0.95rem, 1.55vw, 1.15rem);
+      font-weight: 950;
+      margin-bottom: 4px;
+      color: #111827;
+      letter-spacing: 0.02em;
+    }
+
+    .rule-text {
+      font-size: clamp(0.64rem, 1.05vw, 0.84rem);
+      line-height: 1.17;
+      font-weight: 760;
+      max-width: 96%;
+      color: #263244;
+    }
+
+    .crack-mode .rule-text {
+      font-size: clamp(0.58rem, 0.88vw, 0.76rem);
+    }
+
+    .rule-text mark {
+      background: linear-gradient(135deg, #fde047, #facc15);
+      color: #111827;
+      padding: 0 0.18rem;
+      border-radius: 0.32rem;
+      font-weight: 950;
+      box-shadow: 0 1px 0 rgba(255,255,255,0.65) inset;
+    }
+
+    .small-card-text {
+      font-size: 0.68rem;
+      color: #4b5563;
+      font-weight: 760;
+      margin-top: 5px;
+    }
+
+    .feedback-layer {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 70;
+      overflow: hidden;
+    }
+
+    .falling {
+      position: absolute;
+      top: -70px;
+      animation: fall 1.75s linear forwards;
+      font-size: 2.6rem;
+    }
+
+    @keyframes fall {
+      0% {
+        transform: translateY(-70px) rotate(0deg) scale(0.7);
+        opacity: 1;
+      }
+      100% {
+        transform: translateY(110vh) rotate(720deg) scale(1.25);
+        opacity: 0;
+      }
+    }
+
+    .pop {
+      animation: pop 0.5s ease both;
+    }
+
+    @keyframes pop {
+      0% { transform: scale(0.65); opacity: 0; }
+      70% { transform: scale(1.08); opacity: 1; }
+      100% { transform: scale(1); }
+    }
+
+    .shake .card-inner {
+      animation: shake 0.35s ease;
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: rotateY(180deg) translateX(0); }
+      25% { transform: rotateY(180deg) translateX(-7px); }
+      50% { transform: rotateY(180deg) translateX(7px); }
+      75% { transform: rotateY(180deg) translateX(-5px); }
+    }
+  </style>
+</head>
+
+<body class="text-white">
+
+  <div id="feedbackLayer" class="feedback-layer"></div>
+
+  <main id="startScreen" class="min-h-screen flex items-center justify-center p-4">
+    <section class="glass w-full max-w-5xl rounded-[2rem] shadow-2xl p-6 md:p-10">
+
+      <div class="flex flex-col md:flex-row md:items-center gap-5">
+        <img
+          src="pr-sello.png"
+          alt="Sello Patricia Romero Educación"
+          class="w-24 h-24 md:w-32 md:h-32 rounded-full object-contain bg-white/90 p-2 shadow-2xl"
+        />
+
+        <div>
+          <h1 class="text-4xl md:text-6xl font-black drop-shadow-xl leading-tight">
+            🧠 Memory ortográfico
+          </h1>
+          <p class="text-xl md:text-2xl font-bold mt-2 text-white/95">
+            Tildes, diptongos, hiatos, esdrújulas y sobresdrújulas
+          </p>
+        </div>
+      </div>
+
+      <div class="grid md:grid-cols-2 gap-5 mt-8">
+        <button
+          onclick="startGame(6)"
+          class="group bg-white/95 text-slate-900 rounded-3xl p-6 shadow-2xl text-left hover:scale-[1.03] transition border-4 border-cyan-200"
+        >
+          <p class="text-6xl mb-3">🎴</p>
+          <h2 class="text-3xl font-black">Reto sencillo</h2>
+          <p class="text-lg font-semibold mt-2">
+            12 tarjetas para practicar con calma: 6 palabras y 6 reglas.
+          </p>
+          <p class="mt-4 inline-block bg-cyan-200 px-4 py-2 rounded-full font-black">
+            Empezar reto sencillo →
+          </p>
+        </button>
+
+        <button
+          onclick="startGame(12)"
+          class="group bg-white/95 text-slate-900 rounded-3xl p-6 shadow-2xl text-left hover:scale-[1.03] transition border-4 border-orange-200"
+        >
+          <p class="text-6xl mb-3">🔥</p>
+          <h2 class="text-3xl font-black">Reto para cracks</h2>
+          <p class="text-lg font-semibold mt-2">
+            24 tarjetas para quienes quieren un desafío más largo y difícil.
+          </p>
+          <p class="mt-4 inline-block bg-orange-200 px-4 py-2 rounded-full font-black">
+            Empezar reto para cracks →
+          </p>
+        </button>
+      </div>
+
+      <div class="grid md:grid-cols-3 gap-5 mt-8">
+        <div class="bg-white/95 text-slate-900 rounded-3xl p-5 shadow-xl">
+          <p class="text-5xl mb-2">👀</p>
+          <h2 class="text-2xl font-black">Lee con calma</h2>
+          <p class="text-lg font-semibold mt-2">
+            Si fallas, las tarjetas se quedan abiertas hasta que las cierres.
+          </p>
+        </div>
+
+        <div class="bg-white/95 text-slate-900 rounded-3xl p-5 shadow-xl">
+          <p class="text-5xl mb-2">⏱️</p>
+          <h2 class="text-2xl font-black">Cronómetro</h2>
+          <p class="text-lg font-semibold mt-2">
+            El tiempo empieza al comenzar y se detiene al encontrar todas las parejas.
+          </p>
+        </div>
+
+        <div class="bg-white/95 text-slate-900 rounded-3xl p-5 shadow-xl">
+          <p class="text-5xl mb-2">🔀</p>
+          <h2 class="text-2xl font-black">Siempre cambia</h2>
+          <p class="text-lg font-semibold mt-2">
+            Las tarjetas se seleccionan y se colocan de forma aleatoria en cada partida.
+          </p>
+        </div>
+      </div>
+
+      <div class="mt-8 bg-yellow-300 text-slate-900 rounded-3xl p-5 shadow-xl border-4 border-yellow-100">
+        <p class="text-lg md:text-xl font-black">
+          Para usarlo: guarda este archivo como <span class="bg-white rounded-xl px-2">index.html</span>
+          y guarda el sello como <span class="bg-white rounded-xl px-2">pr-sello.png</span> en la misma carpeta.
+          Después abre el HTML con doble clic.
+        </p>
+      </div>
+
+      <p class="text-center mt-8 text-white/95 text-lg font-black">
+        Creado por Patricia Romero Rodríguez
+      </p>
+    </section>
+  </main>
+
+  <main id="gameScreen" class="hidden min-h-screen p-3 md:p-6">
+    <section class="max-w-7xl mx-auto">
+
+      <header class="glass rounded-[2rem] shadow-2xl p-4 md:p-5 mb-5">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+
+          <div class="flex items-center gap-4">
+            <img
+              src="pr-sello.png"
+              alt="Sello Patricia Romero Educación"
+              class="w-16 h-16 md:w-24 md:h-24 rounded-full object-contain bg-white/90 p-2 shadow-xl"
+            />
+
+            <div>
+              <h1 class="text-3xl md:text-5xl font-black drop-shadow-lg">
+                🧠 Memory ortográfico
+              </h1>
+              <p id="gameModeText" class="text-lg md:text-2xl font-black text-yellow-200 mt-1">
+                Encuentra las parejas leyendo la regla ortográfica
+              </p>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-3 gap-3">
+            <div class="bg-white/95 text-slate-900 rounded-3xl px-4 py-3 text-center shadow-xl">
+              <p class="text-xs md:text-sm font-black text-slate-500">Tiempo</p>
+              <p id="timer" class="text-2xl md:text-3xl font-black">00:00</p>
+            </div>
+
+            <div class="bg-white/95 text-slate-900 rounded-3xl px-4 py-3 text-center shadow-xl">
+              <p class="text-xs md:text-sm font-black text-slate-500">Parejas</p>
+              <p class="text-2xl md:text-3xl font-black">
+                <span id="pairsFound">0</span>/<span id="totalPairsBox">6</span>
+              </p>
+            </div>
+
+            <div class="bg-white/95 text-slate-900 rounded-3xl px-4 py-3 text-center shadow-xl">
+              <p class="text-xs md:text-sm font-black text-slate-500">Fallos</p>
+              <p id="mistakesBox" class="text-2xl md:text-3xl font-black">0</p>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <section class="glass rounded-[2rem] shadow-2xl p-4 md:p-6">
+        <div id="messageBox" class="hidden mb-5 rounded-3xl p-4 text-center text-xl md:text-2xl font-black shadow-xl"></div>
+        <div id="gameBoard" class="board"></div>
+      </section>
+
+      <footer class="text-center mt-5 text-white/95 text-lg font-black">
+        Creado por Patricia Romero Rodríguez
+      </footer>
+
+    </section>
+  </main>
+
+  <main id="endScreen" class="hidden min-h-screen flex items-center justify-center p-4">
+    <section class="glass w-full max-w-5xl rounded-[2rem] shadow-2xl p-6 md:p-10 text-center">
+
+      <img
+        src="pr-sello.png"
+        alt="Sello Patricia Romero Educación"
+        class="w-24 h-24 md:w-32 md:h-32 rounded-full object-contain bg-white/90 p-2 shadow-2xl mx-auto"
+      />
+
+      <h1 class="text-4xl md:text-6xl font-black mt-5 drop-shadow-xl">
+        🏁 ¡Partida completada!
+      </h1>
+
+      <div class="grid md:grid-cols-3 gap-5 mt-8">
+        <div class="bg-white/95 text-slate-900 rounded-3xl p-6 shadow-xl">
+          <p class="text-5xl">🎴</p>
+          <p class="text-lg font-black text-slate-500 mt-2">Reto</p>
+          <p id="finalMode" class="text-3xl font-black">Sencillo</p>
+        </div>
+
+        <div class="bg-white/95 text-slate-900 rounded-3xl p-6 shadow-xl">
+          <p class="text-5xl">⏱️</p>
+          <p class="text-lg font-black text-slate-500 mt-2">Tiempo</p>
+          <p id="finalTime" class="text-4xl font-black">00:00</p>
+        </div>
+
+        <div class="bg-white/95 text-slate-900 rounded-3xl p-6 shadow-xl">
+          <p class="text-5xl">🎯</p>
+          <p class="text-lg font-black text-slate-500 mt-2">Fallos</p>
+          <p id="finalMistakes" class="text-4xl font-black">0</p>
+        </div>
+      </div>
+
+      <div class="mt-8 bg-yellow-300 text-slate-900 rounded-3xl p-6 shadow-xl border-4 border-yellow-100">
+        <p id="motivationalMessage" class="text-2xl md:text-3xl font-black"></p>
+        <p id="challengeMessage" class="text-xl md:text-2xl font-black mt-4"></p>
+      </div>
+
+      <div class="mt-8 grid md:grid-cols-2 gap-4">
+        <button
+          onclick="startGame(6)"
+          class="px-8 py-5 rounded-full bg-gradient-to-r from-cyan-300 via-teal-300 to-yellow-300 text-slate-900 text-2xl font-black shadow-2xl hover:scale-105 transition"
+        >
+          Repetir reto sencillo 🎴
+        </button>
+
+        <button
+          onclick="startGame(12)"
+          class="px-8 py-5 rounded-full bg-gradient-to-r from-orange-300 via-pink-300 to-purple-300 text-slate-900 text-2xl font-black shadow-2xl hover:scale-105 transition"
+        >
+          Ir al reto para cracks 🔥
+        </button>
+      </div>
+
+      <p class="text-center mt-8 text-white/95 text-lg font-black">
+        Creado por Patricia Romero Rodríguez
+      </p>
+    </section>
+  </main>
+
+  <script>
+    let TOTAL_PAIRS = 6;
+    const MATCH_READING_DELAY_MS = 2200;
+
+    const ruleColors = {
+      AGUDA: {
+        main: "#2563eb",
+        second: "#60a5fa",
+        soft: "#eff6ff",
+        border: "#2563eb"
+      },
+      LLANA: {
+        main: "#059669",
+        second: "#34d399",
+        soft: "#ecfdf5",
+        border: "#059669"
+      },
+      ESDRÚJULA: {
+        main: "#7c3aed",
+        second: "#a78bfa",
+        soft: "#f3e8ff",
+        border: "#7c3aed"
+      },
+      SOBRESDRÚJULA: {
+        main: "#ea580c",
+        second: "#fb923c",
+        soft: "#fff7ed",
+        border: "#ea580c"
+      },
+      DIPTONGO: {
+        main: "#0891b2",
+        second: "#22d3ee",
+        soft: "#ecfeff",
+        border: "#0891b2"
+      },
+      HIATO: {
+        main: "#dc2626",
+        second: "#fb7185",
+        soft: "#fff1f2",
+        border: "#dc2626"
+      }
+    };
+
+    const allPairs = [
+      { word: "balón", type: "AGUDA", rule: "Aguda de 2 sílabas. Termina en -n y empieza por b. Lleva tilde." },
+      { word: "café", type: "AGUDA", rule: "Aguda de 2 sílabas. Termina en vocal -e. Lleva tilde." },
+      { word: "Iván", type: "AGUDA", rule: "Aguda de 2 sílabas. Termina en -n y empieza por vocal mayúscula. Lleva tilde." },
+      { word: "emoción", type: "AGUDA", rule: "Aguda de 3 sílabas. Termina en -n. Contiene diptongo y lleva tilde." },
+      { word: "capitán", type: "AGUDA", rule: "Aguda de 3 sílabas. Termina en -n y lleva tilde." },
+      { word: "colibrí", type: "AGUDA", rule: "Aguda de 3 sílabas. Termina en vocal -í y lleva tilde." },
+      { word: "sofá", type: "AGUDA", rule: "Aguda de 2 sílabas. Termina en vocal -á y lleva tilde." },
+      { word: "jabalí", type: "AGUDA", rule: "Aguda de 3 sílabas. Termina en vocal -í y lleva tilde." },
+      { word: "compás", type: "AGUDA", rule: "Aguda de 2 sílabas. Termina en -s y lleva tilde." },
+      { word: "salón", type: "AGUDA", rule: "Aguda de 2 sílabas. Termina en -n y lleva tilde." },
+
+      { word: "fútbol", type: "LLANA", rule: "Llana de 2 sílabas. Termina en -l y empieza por f. Lleva tilde." },
+      { word: "césped", type: "LLANA", rule: "Llana de 2 sílabas. Termina en -d y lleva tilde." },
+      { word: "difícil", type: "LLANA", rule: "Llana de 3 sílabas. Termina en -l y lleva tilde." },
+      { word: "túnel", type: "LLANA", rule: "Llana de 2 sílabas. Termina en -l y empieza por t. Lleva tilde." },
+      { word: "lápiz", type: "LLANA", rule: "Llana de 2 sílabas. Termina en -z y lleva tilde." },
+      { word: "árbol", type: "LLANA", rule: "Llana de 2 sílabas. Termina en -l y lleva tilde." },
+      { word: "mármol", type: "LLANA", rule: "Llana de 2 sílabas. Termina en -l y lleva tilde." },
+      { word: "azúcar", type: "LLANA", rule: "Llana de 3 sílabas. Termina en -r y lleva tilde." },
+      { word: "cóndor", type: "LLANA", rule: "Llana de 2 sílabas. Termina en -r y lleva tilde." },
+      { word: "trébol", type: "LLANA", rule: "Llana de 2 sílabas. Termina en -l y lleva tilde." },
+
+      { word: "rápido", type: "ESDRÚJULA", rule: "Esdrújula de 3 sílabas. Termina en vocal -o. Siempre lleva tilde." },
+      { word: "capítulo", type: "ESDRÚJULA", rule: "Esdrújula de 4 sílabas. Empieza por c. Siempre lleva tilde." },
+      { word: "miércoles", type: "ESDRÚJULA", rule: "Esdrújula de 3 sílabas. Termina en -s. Siempre lleva tilde." },
+      { word: "música", type: "ESDRÚJULA", rule: "Esdrújula de 3 sílabas. Empieza por m. Siempre lleva tilde." },
+      { word: "brújula", type: "ESDRÚJULA", rule: "Esdrújula de 3 sílabas. Termina en vocal -a. Siempre lleva tilde." },
+      { word: "pájaro", type: "ESDRÚJULA", rule: "Esdrújula de 3 sílabas. Empieza por p. Siempre lleva tilde." },
+      { word: "teléfono", type: "ESDRÚJULA", rule: "Esdrújula de 4 sílabas. Termina en vocal -o. Siempre lleva tilde." },
+      { word: "número", type: "ESDRÚJULA", rule: "Esdrújula de 3 sílabas. Termina en vocal -o. Siempre lleva tilde." },
+      { word: "público", type: "ESDRÚJULA", rule: "Esdrújula de 3 sílabas. Empieza por p. Siempre lleva tilde." },
+      { word: "cámara", type: "ESDRÚJULA", rule: "Esdrújula de 3 sílabas. Termina en vocal -a. Siempre lleva tilde." },
+
+      { word: "cuéntamelo", type: "SOBRESDRÚJULA", rule: "Sobresdrújula de 4 sílabas. Lleva tilde porque la sílaba tónica va antes de la antepenúltima." },
+      { word: "explícaselo", type: "SOBRESDRÚJULA", rule: "Sobresdrújula de 5 sílabas. Lleva tilde porque la fuerza de voz está antes de la antepenúltima sílaba." },
+      { word: "devuélveselo", type: "SOBRESDRÚJULA", rule: "Sobresdrújula de 5 sílabas. Contiene diptongo con tilde y siempre lleva tilde." },
+      { word: "entrégaselo", type: "SOBRESDRÚJULA", rule: "Sobresdrújula de 5 sílabas. Empieza por e y siempre lleva tilde." },
+      { word: "cómetelo", type: "SOBRESDRÚJULA", rule: "Sobresdrújula de 4 sílabas. Termina en vocal -o y siempre lleva tilde." },
+      { word: "dibújamelo", type: "SOBRESDRÚJULA", rule: "Sobresdrújula de 5 sílabas. Siempre lleva tilde." },
+      { word: "corrígemelo", type: "SOBRESDRÚJULA", rule: "Sobresdrújula de 5 sílabas. Lleva tilde porque la sílaba tónica va antes de la antepenúltima." },
+      { word: "recuérdaselo", type: "SOBRESDRÚJULA", rule: "Sobresdrújula de 5 sílabas. Contiene diptongo con tilde y siempre lleva tilde." },
+
+      { word: "también", type: "DIPTONGO", rule: "Aguda de 2 sílabas. Contiene diptongo en la sílaba tónica. Termina en -n y lleva tilde." },
+      { word: "después", type: "DIPTONGO", rule: "Aguda de 2 sílabas. Contiene diptongo en la sílaba tónica. Termina en -s y lleva tilde." },
+      { word: "canción", type: "DIPTONGO", rule: "Aguda de 2 sílabas. Contiene diptongo y termina en -n. Lleva tilde." },
+      { word: "náufrago", type: "DIPTONGO", rule: "Esdrújula de 3 sílabas. Contiene diptongo au y lleva tilde." },
+      { word: "murciélago", type: "DIPTONGO", rule: "Esdrújula de 4 sílabas. Contiene diptongo ie y siempre lleva tilde." },
+      { word: "acuático", type: "DIPTONGO", rule: "Esdrújula de 4 sílabas. Contiene diptongo y siempre lleva tilde." },
+      { word: "farmacéutico", type: "DIPTONGO", rule: "Esdrújula de 5 sílabas. Contiene diptongo y siempre lleva tilde." },
+      { word: "huésped", type: "DIPTONGO", rule: "Llana de 2 sílabas. Contiene diptongo y termina en -d. Lleva tilde." },
+
+      { word: "país", type: "HIATO", rule: "Aguda de 2 sílabas. Tiene hiato por vocal abierta + vocal cerrada tónica. Lleva tilde." },
+      { word: "día", type: "HIATO", rule: "Llana de 2 sílabas. Tiene hiato por vocal cerrada tónica + vocal abierta. Lleva tilde." },
+      { word: "baúl", type: "HIATO", rule: "Aguda de 2 sílabas. Tiene hiato por vocal abierta + vocal cerrada tónica. Lleva tilde." },
+      { word: "raíz", type: "HIATO", rule: "Aguda de 2 sílabas. Tiene hiato por vocal abierta + vocal cerrada tónica. Lleva tilde." },
+      { word: "María", type: "HIATO", rule: "Llana de 3 sílabas. Tiene hiato y tilde en la vocal cerrada tónica." },
+      { word: "poesía", type: "HIATO", rule: "Llana de 4 sílabas. Tiene hiato y tilde en la vocal cerrada tónica." },
+      { word: "frío", type: "HIATO", rule: "Llana de 2 sílabas. Tiene hiato y lleva tilde en la vocal cerrada." },
+      { word: "oído", type: "HIATO", rule: "Llana de 3 sílabas. Tiene hiato y tilde en la vocal cerrada tónica." },
+      { word: "alegría", type: "HIATO", rule: "Llana de 4 sílabas. Tiene hiato y tilde en la vocal cerrada tónica." },
+      { word: "río", type: "HIATO", rule: "Llana de 2 sílabas. Tiene hiato por vocal cerrada tónica + vocal abierta. Lleva tilde." }
+    ];
+
+    let deck = [];
+    let firstCard = null;
+    let secondCard = null;
+    let lockBoard = false;
+    let wrongMode = false;
+    let wrongCardsToClose = [];
+    let pairsFound = 0;
+    let mistakes = 0;
+    let seconds = 0;
+    let timerInterval = null;
+    let currentModeName = "Reto sencillo";
+
+    const startScreen = document.getElementById("startScreen");
+    const gameScreen = document.getElementById("gameScreen");
+    const endScreen = document.getElementById("endScreen");
+    const board = document.getElementById("gameBoard");
+    const timer = document.getElementById("timer");
+    const pairsFoundBox = document.getElementById("pairsFound");
+    const totalPairsBox = document.getElementById("totalPairsBox");
+    const mistakesBox = document.getElementById("mistakesBox");
+    const messageBox = document.getElementById("messageBox");
+    const gameModeText = document.getElementById("gameModeText");
+
+    function startGame(pairCount) {
+      stopTimer();
+
+      TOTAL_PAIRS = pairCount;
+      currentModeName = pairCount === 6 ? "Reto sencillo" : "Reto para cracks";
+
+      pairsFound = 0;
+      mistakes = 0;
+      seconds = 0;
+      firstCard = null;
+      secondCard = null;
+      lockBoard = false;
+      wrongMode = false;
+      wrongCardsToClose = [];
+
+      deck = createDeck();
+
+      startScreen.classList.add("hidden");
+      endScreen.classList.add("hidden");
+      gameScreen.classList.remove("hidden");
+
+      pairsFoundBox.textContent = "0";
+      totalPairsBox.textContent = String(TOTAL_PAIRS);
+      mistakesBox.textContent = "0";
+      timer.textContent = "00:00";
+
+      gameModeText.textContent =
+        pairCount === 6
+          ? "Reto sencillo: encuentra 6 parejas leyendo la regla ortográfica"
+          : "Reto para cracks: encuentra 12 parejas leyendo con mucha atención";
+
+      renderBoard();
+      showMessage("Toca dos tarjetas. Lee bien la palabra y su regla. 🎴", "info");
+
+      startTimer();
+    }
+
+    function createDeck() {
+      const selectedPairs = chooseBalancedPairs(TOTAL_PAIRS);
+      const cards = [];
+
+      selectedPairs.forEach((pair, index) => {
+        cards.push({
+          id: `word-${index}`,
+          pairId: index,
+          kind: "word",
+          word: pair.word,
+          type: pair.type,
+          text: pair.word
+        });
+
+        cards.push({
+          id: `rule-${index}`,
+          pairId: index,
+          kind: "rule",
+          word: pair.word,
+          type: pair.type,
+          text: pair.rule
+        });
+      });
+
+      return shuffle(cards);
+    }
+
+    function chooseBalancedPairs(pairCount) {
+      const requiredTypes = ["AGUDA", "LLANA", "ESDRÚJULA", "SOBRESDRÚJULA", "DIPTONGO", "HIATO"];
+      const selected = [];
+
+      requiredTypes.forEach(type => {
+        const options = shuffle(allPairs.filter(pair => pair.type === type));
+        const amount = pairCount === 6 ? 1 : 2;
+
+        for (let i = 0; i < amount; i++) {
+          if (options[i]) selected.push(options[i]);
+        }
+      });
+
+      if (selected.length < pairCount) {
+        const remaining = shuffle(allPairs.filter(pair => !selected.some(sel => sel.word === pair.word)));
+
+        while (selected.length < pairCount && remaining.length > 0) {
+          selected.push(remaining.shift());
+        }
+      }
+
+      return shuffle(selected).slice(0, pairCount);
+    }
+
+    function renderBoard() {
+      board.innerHTML = "";
+      board.className = TOTAL_PAIRS === 12 ? "board crack-mode" : "board";
+
+      deck.forEach((card, index) => {
+        const scene = document.createElement("div");
+        scene.className = "card-scene";
+
+        const button = document.createElement("button");
+        button.className = "memory-card";
+        button.dataset.id = card.id;
+        button.dataset.pairId = card.pairId;
+        button.dataset.index = index;
+        button.type = "button";
+        button.setAttribute("aria-label", "Tarjeta de memory");
+        button.onclick = () => handleCardClick(button, card);
+
+        const inner = document.createElement("div");
+        inner.className = "card-inner";
+
+        const back = document.createElement("div");
+        back.className = "face back";
+        back.innerHTML = `
+          <div class="back-logo-wrap">
+            <img src="pr-sello.png" alt="Sello PR" />
+          </div>
+        `;
+
+        const front = document.createElement("div");
+
+        if (card.kind === "word") {
+          front.className = "face front word-front";
+          front.innerHTML = `
+            <div class="word-card-body">
+              <div class="word-label">PALABRA</div>
+              <div class="word-text">${escapeHtml(card.text)}</div>
+              <div class="word-type-small">Busca la regla correcta</div>
+            </div>
+          `;
+        } else {
+          const cardColor = ruleColors[card.type];
+
+          front.className = "face front rule-front";
+          front.style.setProperty("--main-color", cardColor.main);
+          front.style.setProperty("--second-color", cardColor.second);
+          front.style.setProperty("--soft-color", cardColor.soft);
+          front.style.setProperty("--border-color", cardColor.border);
+
+          front.innerHTML = `
+            <div class="card-header">
+              <span>REGLA</span>
+              <span>${formatType(card.type)}</span>
+            </div>
+            <div class="card-body">
+              <div class="rule-title">PISTA</div>
+              <div class="rule-text">${highlightRule(card.text)}</div>
+              <div class="small-card-text">La palabra no aparece aquí</div>
+            </div>
+          `;
+        }
+
+        inner.appendChild(back);
+        inner.appendChild(front);
+        button.appendChild(inner);
+        scene.appendChild(button);
+        board.appendChild(scene);
+      });
+    }
+
+    function handleCardClick(element, card) {
+      if (element.classList.contains("matched")) return;
+
+      if (wrongMode) {
+        handleWrongCardClose(element);
+        return;
+      }
+
+      if (lockBoard) return;
+      if (element.classList.contains("flipped")) return;
+
+      element.classList.add("flipped");
+
+      if (!firstCard) {
+        firstCard = { element, card };
+        return;
+      }
+
+      secondCard = { element, card };
+      lockBoard = true;
+
+      const isPair =
+        firstCard.card.pairId === secondCard.card.pairId &&
+        firstCard.card.kind !== secondCard.card.kind;
+
+      if (isPair) {
+        handleCorrectPair();
+      } else {
+        handleWrongPair();
+      }
+    }
+
+    function handleCorrectPair() {
+      pairsFound++;
+      pairsFoundBox.textContent = pairsFound;
+
+      showMessage("¡Pareja correcta! Léela unos segundos antes de que desaparezca. 🌟", "success");
+      createJoy();
+
+      setTimeout(() => {
+        firstCard.element.classList.add("matched");
+        secondCard.element.classList.add("matched");
+
+        resetTurn();
+
+        if (pairsFound === TOTAL_PAIRS) {
+          finishGame();
+        }
+      }, MATCH_READING_DELAY_MS);
+    }
+
+    function handleWrongPair() {
+      mistakes++;
+      mistakesBox.textContent = mistakes;
+
+      showMessage("No era pareja. Léelas bien y toca cada tarjeta para cerrarla. 😢", "error");
+      createSad();
+
+      firstCard.element.classList.add("shake", "wrong-open");
+      secondCard.element.classList.add("shake", "wrong-open");
+
+      setTimeout(() => {
+        firstCard.element.classList.remove("shake");
+        secondCard.element.classList.remove("shake");
+      }, 400);
+
+      wrongMode = true;
+      lockBoard = true;
+      wrongCardsToClose = [firstCard.element, secondCard.element];
+    }
+
+    function handleWrongCardClose(element) {
+      if (!wrongCardsToClose.includes(element)) {
+        showMessage("Primero cierra las dos tarjetas fallidas tocándolas. 👆", "error");
+        return;
+      }
+
+      if (!element.classList.contains("flipped")) return;
+
+      element.classList.remove("flipped", "wrong-open");
+      wrongCardsToClose = wrongCardsToClose.filter(cardElement => cardElement !== element);
+
+      if (wrongCardsToClose.length === 1) {
+        showMessage("Muy bien. Ahora cierra la otra tarjeta fallida. 👆", "info");
+      }
+
+      if (wrongCardsToClose.length === 0) {
+        resetTurn();
+        showMessage("Ahora puedes elegir dos tarjetas nuevas. 🎴", "info");
+      }
+    }
+
+    function resetTurn() {
+      firstCard = null;
+      secondCard = null;
+      lockBoard = false;
+      wrongMode = false;
+      wrongCardsToClose = [];
+    }
+
+    function finishGame() {
+      stopTimer();
+      createJoy();
+
+      setTimeout(() => {
+        gameScreen.classList.add("hidden");
+        endScreen.classList.remove("hidden");
+
+        document.getElementById("finalMode").textContent = currentModeName;
+        document.getElementById("finalTime").textContent = formatTime(seconds);
+        document.getElementById("finalMistakes").textContent = mistakes;
+
+        document.getElementById("motivationalMessage").textContent = getMotivationalMessage(seconds, mistakes);
+        document.getElementById("challengeMessage").textContent = getChallengeMessage(seconds, mistakes);
+      }, 700);
+    }
+
+    function getMotivationalMessage(totalSeconds, totalMistakes) {
+      if (TOTAL_PAIRS === 6) {
+        if (totalSeconds <= 60 && totalMistakes <= 1) {
+          return "¡Nivel experto ortográfico! Has resuelto el reto sencillo a toda velocidad. ⚡";
+        }
+
+        if (totalSeconds <= 100 && totalMistakes <= 3) {
+          return "¡Muy buen trabajo! Tus tildes están cada vez más fuertes. 🏆";
+        }
+
+        return "¡Reto sencillo completado! La ortografía se entrena leyendo y jugando. 💪";
+      }
+
+      if (totalSeconds <= 150 && totalMistakes <= 4) {
+        return "¡Crack total! Has superado el reto difícil con una concentración impresionante. 🔥";
+      }
+
+      if (totalSeconds <= 240 && totalMistakes <= 8) {
+        return "¡Muy buen reto! Has aguantado una partida larga leyendo reglas con atención. 🧠";
+      }
+
+      return "¡Reto para cracks completado! No era fácil, pero lo has conseguido. 🚀";
+    }
+
+    function getChallengeMessage(totalSeconds, totalMistakes) {
+      if (totalMistakes === 0) {
+        return "Reto extra: ¿te atreves a repetir sin fallos y en menos tiempo? 😏";
+      }
+
+      if (TOTAL_PAIRS === 6) {
+        return "Ahora prueba el reto para cracks y demuestra que las tildes no pueden contigo. 🔥";
+      }
+
+      return "Reto ninja: juega otra vez y deja a las caritas llorando sin trabajo. 🥷";
+    }
+
+    function startTimer() {
+      timerInterval = setInterval(() => {
+        seconds++;
+        timer.textContent = formatTime(seconds);
+      }, 1000);
+    }
+
+    function stopTimer() {
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+      }
+    }
+
+    function formatTime(totalSeconds) {
+      const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, "0");
+      const secs = (totalSeconds % 60).toString().padStart(2, "0");
+      return `${minutes}:${secs}`;
+    }
+
+    function showMessage(text, type) {
+      messageBox.classList.remove("hidden");
+      messageBox.textContent = text;
+
+      if (type === "success") {
+        messageBox.className = "mb-5 rounded-3xl p-4 text-center text-xl md:text-2xl font-black shadow-xl bg-green-300 text-slate-900 pop";
+      } else if (type === "error") {
+        messageBox.className = "mb-5 rounded-3xl p-4 text-center text-xl md:text-2xl font-black shadow-xl bg-red-300 text-slate-900 pop";
+      } else {
+        messageBox.className = "mb-5 rounded-3xl p-4 text-center text-xl md:text-2xl font-black shadow-xl bg-yellow-300 text-slate-900 pop";
+      }
+    }
+
+    function createJoy() {
+      const layer = document.getElementById("feedbackLayer");
+      const emojis = ["🎉", "🎊", "⭐", "🌟", "✨", "🥳", "🏆", "💫"];
+
+      for (let i = 0; i < 55; i++) {
+        const item = document.createElement("div");
+        item.className = "falling";
+        item.textContent = randomItem(emojis);
+        item.style.left = Math.random() * 100 + "vw";
+        item.style.animationDelay = Math.random() * 0.4 + "s";
+        item.style.fontSize = (1.8 + Math.random() * 2.4) + "rem";
+        layer.appendChild(item);
+
+        setTimeout(() => item.remove(), 2300);
+      }
+    }
+
+    function createSad() {
+      const layer = document.getElementById("feedbackLayer");
+      const emojis = ["😭", "😢", "☹️", "😟", "💧", "🙁"];
+
+      for (let i = 0; i < 35; i++) {
+        const item = document.createElement("div");
+        item.className = "falling";
+        item.textContent = randomItem(emojis);
+        item.style.left = Math.random() * 100 + "vw";
+        item.style.animationDelay = Math.random() * 0.32 + "s";
+        item.style.fontSize = (1.9 + Math.random() * 2.2) + "rem";
+        layer.appendChild(item);
+
+        setTimeout(() => item.remove(), 2300);
+      }
+    }
+
+    function formatType(type) {
+      if (type === "SOBRESDRÚJULA") return "SOBRESDR.";
+      return type;
+    }
+
+    function highlightRule(text) {
+      const escaped = escapeHtml(text);
+
+      const keywords = [
+        "Aguda",
+        "aguda",
+        "Llana",
+        "llana",
+        "Esdrújula",
+        "esdrújula",
+        "Sobresdrújula",
+        "sobresdrújula",
+        "Diptongo",
+        "diptongo",
+        "Hiato",
+        "hiato",
+        "Tilde",
+        "tilde",
+        "Tónica",
+        "tónica",
+        "Tónico",
+        "tónico",
+        "Vocal abierta",
+        "vocal abierta",
+        "Vocal cerrada",
+        "vocal cerrada",
+        "Siempre",
+        "siempre",
+        "antepenúltima",
+        "sílaba tónica",
+        "lleva tilde",
+        "Lleva tilde",
+        "Termina en",
+        "termina en",
+        "Empieza por",
+        "empieza por"
+      ];
+
+      let result = escaped;
+
+      keywords.forEach(keyword => {
+        const safeKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const regex = new RegExp(`(${safeKeyword})`, "g");
+        result = result.replace(regex, "<mark>$1</mark>");
+      });
+
+      return result;
+    }
+
+    function shuffle(array) {
+      const copy = [...array];
+
+      for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+
+      return copy;
+    }
+
+    function randomItem(array) {
+      return array[Math.floor(Math.random() * array.length)];
+    }
+
+    function escapeHtml(text) {
+      return String(text)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+  </script>
+</body>
+</html>
